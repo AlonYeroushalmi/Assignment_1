@@ -36,6 +36,7 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
+
   if(tf->trapno == T_SYSCALL){
     if(myproc()->killed)
       exit();
@@ -53,6 +54,13 @@ trap(struct trapframe *tf)
       ticks++;
       wakeup(&ticks);
       release(&tickslock);
+      // check if proc is running or sleeping and update time fields accordingly.
+       if(proc) {
+        if(proc->state == RUNNING)
+          proc->rtime++;
+        else if(proc->state == SLEEPING)
+          proc->iotime++;
+      }
     }
     lapiceoi();
     break;

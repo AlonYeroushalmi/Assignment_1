@@ -139,6 +139,12 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  // set creation time of process
+  p->ctime = ticks;
+  p->etime = 0;
+  p->rtime = 0;
+  p->iotime=0;
+
   return p;
 }
 
@@ -258,6 +264,7 @@ exit(void)
   struct proc *p;
   int fd;
 
+
   if(curproc == initproc)
     panic("init exiting");
 
@@ -288,6 +295,8 @@ exit(void)
     }
   }
 
+  // set end time of process
+  curproc->etime = ticks;
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
   sched();
@@ -625,4 +634,62 @@ int remVariable(char* var) {
     }
   }
   return result;
+}
+/*
+int wait2(int pid, int* wtime, int* rtime, int* iotime)
+input:
+• Int pid – The process ID to wait for
+• int* wtime – A pointer to an integer that will hold wait time (𝑤𝑡𝑖𝑚𝑒 = 𝑒𝑡𝑖𝑚𝑒 − 𝑐𝑡𝑖𝑚𝑒 − 𝑖𝑜𝑡𝑖𝑚𝑒 −
+𝑟𝑡𝑖𝑚𝑒).
+• int* rtime – A pointer to an integer that will hold run time.
+• Int* iotime – A pointer to an integer that will hold io time.
+Output:
+• 0 – Process ID of caught child
+• -1 – Process pid does not exist
+*/
+int wait2(int pid, int* wtime, int* rtime, int* iotime) {
+
+  struct proc *p;
+  int havekids;
+  struct proc *curproc = myproc();
+  
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for specifiec son with the pid..
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if( p->pid = pid){
+        if(p->parent != curproc)
+          continue;
+        havekids = 1;
+        if(p->state == ZOMBIE){
+          // Found one.
+          // regular wait syscall:
+          kfree(p->kstack);
+          p->kstack = 0;
+          freevm(p->pgdir);
+          p->pid = 0;
+          p->parent = 0;
+          p->name[0] = 0;
+          p->killed = 0;
+          p->state = UNUSED;
+          //end of regular wait sys call, the following is wait2:
+          *wtime = p->etime - p->ctime - p->rtime - p->iotime;
+          *rtime = p->rtime;
+          *iotime = p->iotime;
+          release(&ptable.lock);
+          return pid;
+        }
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || curproc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+  }
 }
