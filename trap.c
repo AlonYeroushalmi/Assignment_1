@@ -13,6 +13,7 @@ struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
+extern int inctickcounter(void);
 
 void
 tvinit(void)
@@ -36,7 +37,6 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
-
   if(tf->trapno == T_SYSCALL){
     if(myproc()->killed)
       exit();
@@ -55,11 +55,11 @@ trap(struct trapframe *tf)
       wakeup(&ticks);
       release(&tickslock);
       // check if proc is running or sleeping and update time fields accordingly.
-       if(proc) {
-        if(proc->state == RUNNING)
-          proc->rtime++;
-        else if(proc->state == SLEEPING)
-          proc->iotime++;
+      if(myproc() != 0){
+        if(myproc()->state == RUNNING)
+          myproc()->rtime++;
+        else if(myproc()->state == SLEEPING)
+          myproc()->iotime++;
       }
     }
     lapiceoi();
@@ -110,10 +110,11 @@ trap(struct trapframe *tf)
 
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
+  #ifndef FCFS
   if(myproc() && myproc()->state == RUNNING &&
-     tf->trapno == T_IRQ0+IRQ_TIMER)
+     tf->trapno == T_IRQ0+IRQ_TIMER && myproc()->tickcounter == QUANTUM)
     yield();
-
+  #endif
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();

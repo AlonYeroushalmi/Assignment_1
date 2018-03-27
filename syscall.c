@@ -107,7 +107,7 @@ extern int sys_yield(void);
 extern int sys_setVariable(void);
 extern int sys_getVariable(void);
 extern int sys_remVariable(void);
-extern int sys_wait2(int pid, int* wtime, int* rtime, int* iotime);
+extern int sys_wait2(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,

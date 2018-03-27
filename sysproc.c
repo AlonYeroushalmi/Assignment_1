@@ -120,6 +120,9 @@ int sys_remVariable(void) {
   return remVariable(var);
 }
 
-int sys_wait2(int pid, int* wtime, int* rtime, int* iotime){
-  printf("sysproc.c: add code here");
+int sys_wait2(void){
+  int pid, wtime, rtime, iotime;
+  if(argint(0, &pid) < 0)
+    return -1;
+  return wait2(pid, &wtime, &rtime, &iotime);
 }
