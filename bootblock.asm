@@ -73,7 +73,8 @@ seta20.2:
   # to reload %cs and %eip.  The segment descriptors are set up with no
   # translation, so that the mapping is still the identity mapping.
   ljmp    $(SEG_KCODE<<3), $start32
-    7c2c:	ea 31 7c 08 00 66 b8 	ljmp   $0xb866,$0x87c31
+    7c2c:	ea                   	.byte 0xea
+    7c2d:	31 7c 08 00          	xor    %edi,0x0(%eax,%ecx,1)
 
 00007c31 <start32>:
 
@@ -126,7 +127,10 @@ spin:
     7c69:	ff 00                	incl   (%eax)
     7c6b:	00 00                	add    %al,(%eax)
     7c6d:	9a cf 00 ff ff 00 00 	lcall  $0x0,$0xffff00cf
-    7c74:	00 92 cf 00 17 00    	add    %dl,0x1700cf(%edx)
+    7c74:	00                   	.byte 0x0
+    7c75:	92                   	xchg   %eax,%edx
+    7c76:	cf                   	iret   
+	...
 
 00007c78 <gdtdesc>:
     7c78:	17                   	pop    %ss
@@ -186,19 +190,14 @@ outb(ushort port, uchar data)
     7ca8:	ba f3 01 00 00       	mov    $0x1f3,%edx
     7cad:	89 d8                	mov    %ebx,%eax
     7caf:	ee                   	out    %al,(%dx)
-  outb(0x1F2, 1);   // count = 1
-  outb(0x1F3, offset);
-  outb(0x1F4, offset >> 8);
     7cb0:	89 d8                	mov    %ebx,%eax
     7cb2:	c1 e8 08             	shr    $0x8,%eax
     7cb5:	ba f4 01 00 00       	mov    $0x1f4,%edx
     7cba:	ee                   	out    %al,(%dx)
-  outb(0x1F5, offset >> 16);
     7cbb:	89 d8                	mov    %ebx,%eax
     7cbd:	c1 e8 10             	shr    $0x10,%eax
     7cc0:	ba f5 01 00 00       	mov    $0x1f5,%edx
     7cc5:	ee                   	out    %al,(%dx)
-  outb(0x1F6, (offset >> 24) | 0xE0);
     7cc6:	89 d8                	mov    %ebx,%eax
     7cc8:	c1 e8 18             	shr    $0x18,%eax
     7ccb:	83 c8 e0             	or     $0xffffffe0,%eax
@@ -207,6 +206,8 @@ outb(ushort port, uchar data)
     7cd4:	ba f7 01 00 00       	mov    $0x1f7,%edx
     7cd9:	b8 20 00 00 00       	mov    $0x20,%eax
     7cde:	ee                   	out    %al,(%dx)
+  outb(0x1F5, offset >> 16);
+  outb(0x1F6, (offset >> 24) | 0xE0);
   outb(0x1F7, 0x20);  // cmd 0x20 - read sectors
 
   // Read data.
@@ -320,74 +321,64 @@ bootmain(void)
     7d55:	83 c4 0c             	add    $0xc,%esp
     7d58:	81 3d 00 00 01 00 7f 	cmpl   $0x464c457f,0x10000
     7d5f:	45 4c 46 
-    7d62:	74 08                	je     7d6c <bootmain+0x31>
-
-  // Call the entry point from the ELF header.
-  // Does not return!
-  entry = (void(*)(void))(elf->entry);
-  entry();
-}
-    7d64:	8d 65 f4             	lea    -0xc(%ebp),%esp
-    7d67:	5b                   	pop    %ebx
-    7d68:	5e                   	pop    %esi
-    7d69:	5f                   	pop    %edi
-    7d6a:	5d                   	pop    %ebp
-    7d6b:	c3                   	ret    
-  // Is this an ELF executable?
-  if(elf->magic != ELF_MAGIC)
+    7d62:	75 50                	jne    7db4 <bootmain+0x79>
     return;  // let bootasm.S handle error
 
   // Load each program segment (ignores ph flags).
   ph = (struct proghdr*)((uchar*)elf + elf->phoff);
-    7d6c:	a1 1c 00 01 00       	mov    0x1001c,%eax
-    7d71:	8d 98 00 00 01 00    	lea    0x10000(%eax),%ebx
+    7d64:	a1 1c 00 01 00       	mov    0x1001c,%eax
+    7d69:	8d 98 00 00 01 00    	lea    0x10000(%eax),%ebx
   eph = ph + elf->phnum;
-    7d77:	0f b7 35 2c 00 01 00 	movzwl 0x1002c,%esi
-    7d7e:	c1 e6 05             	shl    $0x5,%esi
-    7d81:	01 de                	add    %ebx,%esi
+    7d6f:	0f b7 35 2c 00 01 00 	movzwl 0x1002c,%esi
+    7d76:	c1 e6 05             	shl    $0x5,%esi
+    7d79:	01 de                	add    %ebx,%esi
   for(; ph < eph; ph++){
-    7d83:	39 f3                	cmp    %esi,%ebx
-    7d85:	72 0f                	jb     7d96 <bootmain+0x5b>
-  }
-
-  // Call the entry point from the ELF header.
-  // Does not return!
-  entry = (void(*)(void))(elf->entry);
-  entry();
-    7d87:	ff 15 18 00 01 00    	call   *0x10018
-    7d8d:	eb d5                	jmp    7d64 <bootmain+0x29>
-    return;  // let bootasm.S handle error
-
-  // Load each program segment (ignores ph flags).
-  ph = (struct proghdr*)((uchar*)elf + elf->phoff);
-  eph = ph + elf->phnum;
-  for(; ph < eph; ph++){
-    7d8f:	83 c3 20             	add    $0x20,%ebx
-    7d92:	39 de                	cmp    %ebx,%esi
-    7d94:	76 f1                	jbe    7d87 <bootmain+0x4c>
+    7d7b:	39 f3                	cmp    %esi,%ebx
+    7d7d:	73 2f                	jae    7dae <bootmain+0x73>
     pa = (uchar*)ph->paddr;
-    7d96:	8b 7b 0c             	mov    0xc(%ebx),%edi
+    7d7f:	8b 7b 0c             	mov    0xc(%ebx),%edi
     readseg(pa, ph->filesz, ph->off);
-    7d99:	ff 73 04             	pushl  0x4(%ebx)
-    7d9c:	ff 73 10             	pushl  0x10(%ebx)
-    7d9f:	57                   	push   %edi
-    7da0:	e8 53 ff ff ff       	call   7cf8 <readseg>
+    7d82:	ff 73 04             	pushl  0x4(%ebx)
+    7d85:	ff 73 10             	pushl  0x10(%ebx)
+    7d88:	57                   	push   %edi
+    7d89:	e8 6a ff ff ff       	call   7cf8 <readseg>
     if(ph->memsz > ph->filesz)
-    7da5:	8b 4b 14             	mov    0x14(%ebx),%ecx
-    7da8:	8b 43 10             	mov    0x10(%ebx),%eax
-    7dab:	83 c4 0c             	add    $0xc,%esp
-    7dae:	39 c1                	cmp    %eax,%ecx
-    7db0:	76 dd                	jbe    7d8f <bootmain+0x54>
-      stosb(pa + ph->filesz, 0, ph->memsz - ph->filesz);
-    7db2:	01 c7                	add    %eax,%edi
-    7db4:	29 c1                	sub    %eax,%ecx
+    7d8e:	8b 4b 14             	mov    0x14(%ebx),%ecx
+    7d91:	8b 43 10             	mov    0x10(%ebx),%eax
+    7d94:	83 c4 0c             	add    $0xc,%esp
+    7d97:	39 c1                	cmp    %eax,%ecx
+    7d99:	76 0c                	jbe    7da7 <bootmain+0x6c>
 }
 
 static inline void
 stosb(void *addr, int data, int cnt)
 {
   asm volatile("cld; rep stosb" :
-    7db6:	b8 00 00 00 00       	mov    $0x0,%eax
-    7dbb:	fc                   	cld    
-    7dbc:	f3 aa                	rep stos %al,%es:(%edi)
-    7dbe:	eb cf                	jmp    7d8f <bootmain+0x54>
+    7d9b:	01 c7                	add    %eax,%edi
+    7d9d:	29 c1                	sub    %eax,%ecx
+    7d9f:	b8 00 00 00 00       	mov    $0x0,%eax
+    7da4:	fc                   	cld    
+    7da5:	f3 aa                	rep stos %al,%es:(%edi)
+    return;  // let bootasm.S handle error
+
+  // Load each program segment (ignores ph flags).
+  ph = (struct proghdr*)((uchar*)elf + elf->phoff);
+  eph = ph + elf->phnum;
+  for(; ph < eph; ph++){
+    7da7:	83 c3 20             	add    $0x20,%ebx
+    7daa:	39 de                	cmp    %ebx,%esi
+    7dac:	77 d1                	ja     7d7f <bootmain+0x44>
+  }
+
+  // Call the entry point from the ELF header.
+  // Does not return!
+  entry = (void(*)(void))(elf->entry);
+  entry();
+    7dae:	ff 15 18 00 01 00    	call   *0x10018
+}
+    7db4:	8d 65 f4             	lea    -0xc(%ebp),%esp
+    7db7:	5b                   	pop    %ebx
+    7db8:	5e                   	pop    %esi
+    7db9:	5f                   	pop    %edi
+    7dba:	5d                   	pop    %ebp
+    7dbb:	c3                   	ret    

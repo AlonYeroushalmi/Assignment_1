@@ -9,6 +9,7 @@
 
 #define MAX_VARIABLES 32
 #define USER_COMMAND_MAX_SIZE 128
+#define NULL 0
 
 char variable_table[MAX_VARIABLES][2][USER_COMMAND_MAX_SIZE];
 int next_empty_vartable_index = 0;
@@ -365,12 +366,59 @@ scheduler(void)
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
+    //define the process with the minimum creation time, used for FCFS.
+    struct proc *minP = 0;
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+
+    // choose Schedling policy and use it.
+    // -----------------------------------
+
+    #ifdef DEFAULT
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+      swtch(&cpu->scheduler, proc->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      proc = 0;
+    }
+
+#else
+    #ifdef FCFS
+        struct proc *minP = NULL;
+        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+          if(p->state == RUNNABLE){
+            if (minP != NULL) 
+            {
+              if(p->ctime < minP->ctime) //we found a process with smallest creation time, update minP.
+                minP = p;
+            }
+            else
+              minP = p; //if minP is Null, use current process as minP.
+          }
+        }
+        // after we traversed the process table, run the process with the smalles creation time.
+        if (minP != NULL){
+          p = minP; //the process with the smallest creation time
+          proc = p;
+          switchuvm(p);
+          p->state = RUNNING;
+          swtch(&cpu->scheduler, proc->context);
+          switchkvm();
+          // after return from switchkvm - the proccess stopped running
+          // change p->state before coming back.
+           proc = 0;
+       }
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -386,6 +434,8 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
+    #endif 
+    #endif
     release(&ptable.lock);
 
   }
@@ -658,7 +708,7 @@ int wait2(int pid, int* wtime, int* rtime, int* iotime) {
     // Scan through table looking for specifiec son with the pid..
     havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if( p->pid = pid){
+      if( p->pid == pid){
         if(p->parent != curproc)
           continue;
         havekids = 1;
@@ -692,4 +742,12 @@ int wait2(int pid, int* wtime, int* rtime, int* iotime) {
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
+}
+
+int inctickcounter() {
+  int res;
+  acquire(&ptable.lock);
+  res = ++proc->tickcounter;
+  release(&ptable.lock);
+  return res;
 }

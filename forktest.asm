@@ -81,11 +81,11 @@ void
 printf(int fd, char *s, ...)
 {
   write(fd, s, strlen(s));
-  59:	68 f0 04 00 00       	push   $0x4f0
+  59:	68 f8 04 00 00       	push   $0x4f8
   5e:	e8 fd 01 00 00       	call   260 <strlen>
   63:	83 c4 0c             	add    $0xc,%esp
   66:	50                   	push   %eax
-  67:	68 f0 04 00 00       	push   $0x4f0
+  67:	68 f8 04 00 00       	push   $0x4f8
   6c:	6a 01                	push   $0x1
   6e:	e8 e5 03 00 00       	call   458 <write>
   73:	83 c4 10             	add    $0x10,%esp
@@ -150,11 +150,11 @@ printf(int fd, char *s, ...)
 {
   write(fd, s, strlen(s));
   b8:	83 ec 0c             	sub    $0xc,%esp
-  bb:	68 22 05 00 00       	push   $0x522
+  bb:	68 2a 05 00 00       	push   $0x52a
   c0:	e8 9b 01 00 00       	call   260 <strlen>
   c5:	83 c4 0c             	add    $0xc,%esp
   c8:	50                   	push   %eax
-  c9:	68 22 05 00 00       	push   $0x522
+  c9:	68 2a 05 00 00       	push   $0x52a
   ce:	6a 01                	push   $0x1
   d0:	e8 83 03 00 00       	call   458 <write>
     printf(1, "wait got too many\n");
@@ -174,11 +174,11 @@ printf(int fd, char *s, ...)
 {
   write(fd, s, strlen(s));
   e0:	83 ec 0c             	sub    $0xc,%esp
-  e3:	68 30 05 00 00       	push   $0x530
+  e3:	68 38 05 00 00       	push   $0x538
   e8:	e8 73 01 00 00       	call   260 <strlen>
   ed:	83 c4 0c             	add    $0xc,%esp
   f0:	50                   	push   %eax
-  f1:	68 30 05 00 00       	push   $0x530
+  f1:	68 38 05 00 00       	push   $0x538
   f6:	6a 01                	push   $0x1
   f8:	e8 5b 03 00 00       	call   458 <write>
       exit();
@@ -202,11 +202,11 @@ printf(int fd, char *s, ...)
 {
   write(fd, s, strlen(s));
  107:	83 ec 0c             	sub    $0xc,%esp
- 10a:	68 fb 04 00 00       	push   $0x4fb
+ 10a:	68 03 05 00 00       	push   $0x503
  10f:	e8 4c 01 00 00       	call   260 <strlen>
  114:	83 c4 0c             	add    $0xc,%esp
  117:	50                   	push   %eax
- 118:	68 fb 04 00 00       	push   $0x4fb
+ 118:	68 03 05 00 00       	push   $0x503
  11d:	6a 01                	push   $0x1
  11f:	e8 34 03 00 00       	call   458 <write>
   }
@@ -223,11 +223,11 @@ printf(int fd, char *s, ...)
 {
   write(fd, s, strlen(s));
  129:	83 ec 0c             	sub    $0xc,%esp
- 12c:	68 0f 05 00 00       	push   $0x50f
+ 12c:	68 17 05 00 00       	push   $0x517
  131:	e8 2a 01 00 00       	call   260 <strlen>
  136:	83 c4 0c             	add    $0xc,%esp
  139:	50                   	push   %eax
- 13a:	68 0f 05 00 00       	push   $0x50f
+ 13a:	68 17 05 00 00       	push   $0x517
  13f:	6a 01                	push   $0x1
  141:	e8 12 03 00 00       	call   458 <write>
     }
@@ -744,22 +744,15 @@ stat(char *n, struct stat *st)
  37f:	89 c3                	mov    %eax,%ebx
  381:	50                   	push   %eax
  382:	e8 09 01 00 00       	call   490 <fstat>
+ 387:	89 c6                	mov    %eax,%esi
   close(fd);
- 387:	89 1c 24             	mov    %ebx,(%esp)
-  int r;
-
-  fd = open(n, O_RDONLY);
-  if(fd < 0)
-    return -1;
-  r = fstat(fd, st);
- 38a:	89 c6                	mov    %eax,%esi
-  close(fd);
+ 389:	89 1c 24             	mov    %ebx,(%esp)
  38c:	e8 cf 00 00 00       	call   460 <close>
   return r;
  391:	83 c4 10             	add    $0x10,%esp
+ 394:	89 f0                	mov    %esi,%eax
 }
- 394:	8d 65 f8             	lea    -0x8(%ebp),%esp
- 397:	89 f0                	mov    %esi,%eax
+ 396:	8d 65 f8             	lea    -0x8(%ebp),%esp
  399:	5b                   	pop    %ebx
  39a:	5e                   	pop    %esi
  39b:	5d                   	pop    %ebp
@@ -771,8 +764,8 @@ stat(char *n, struct stat *st)
   fd = open(n, O_RDONLY);
   if(fd < 0)
     return -1;
- 3a0:	be ff ff ff ff       	mov    $0xffffffff,%esi
- 3a5:	eb ed                	jmp    394 <stat+0x34>
+ 3a0:	b8 ff ff ff ff       	mov    $0xffffffff,%eax
+ 3a5:	eb ef                	jmp    396 <stat+0x36>
  3a7:	89 f6                	mov    %esi,%esi
  3a9:	8d bc 27 00 00 00 00 	lea    0x0(%edi,%eiz,1),%edi
 
@@ -1026,3 +1019,9 @@ SYSCALL(remVariable)
  4e8:	b8 19 00 00 00       	mov    $0x19,%eax
  4ed:	cd 40                	int    $0x40
  4ef:	c3                   	ret    
+
+000004f0 <wait2>:
+SYSCALL(wait2)
+ 4f0:	b8 1a 00 00 00       	mov    $0x1a,%eax
+ 4f5:	cd 40                	int    $0x40
+ 4f7:	c3                   	ret    

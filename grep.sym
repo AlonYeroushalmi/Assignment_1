@@ -1,6 +1,6 @@
 00000000 .text
-00000a80 .rodata
-00000ad4 .eh_frame
+00000a90 .rodata
+00000ae4 .eh_frame
 00000ee0 .bss
 00000000 .comment
 00000000 .debug_aranges
@@ -13,14 +13,13 @@
 00000000 grep.c
 00000000 ulib.c
 00000000 printf.c
-000006c0 printint
-00000ac0 digits.1053
+000006d0 printint
+00000ad0 digits.1133
 00000000 umalloc.c
 00000ee0 freep
 00000ee4 base
-00000000 
 00000320 strcpy
-00000760 printf
+00000770 printf
 000005c0 memmove
 00000110 matchhere
 00000650 mknod
@@ -29,6 +28,7 @@
 00000220 grep
 000009a0 malloc
 00000698 sleep
+000006c0 wait2
 00000618 pipe
 00000628 write
 00000660 fstat
@@ -46,7 +46,7 @@
 00000600 fork
 00000690 sbrk
 000006a0 uptime
-00000ed0 __bss_start
+00000ee0 __bss_start
 00000460 memset
 00000000 main
 000000b0 matchstar
@@ -54,7 +54,7 @@
 00000680 dup
 00000f00 buf
 00000530 stat
-00000ed0 _edata
+00000ee0 _edata
 00001300 _end
 000001d0 match
 00000668 link
