@@ -15,10 +15,11 @@
 00000000 ulib.c
 00000000 printf.c
 000004a0 printint
-000008b8 digits.1133
+000008b8 digits.1058
 00000000 umalloc.c
 00000be0 freep
 00000be4 base
+00000000 
 000000f0 strcpy
 00000540 printf
 00000bd8 argv
@@ -26,7 +27,7 @@
 00000420 mknod
 00000290 gets
 00000458 getpid
-00000770 malloc
+00000780 malloc
 00000468 sleep
 00000490 wait2
 000003e8 pipe
@@ -63,4 +64,4 @@
 00000478 setVariable
 00000440 mkdir
 00000400 close
-000006e0 free
+000006f0 free

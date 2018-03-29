@@ -744,15 +744,22 @@ stat(char *n, struct stat *st)
  37f:	89 c3                	mov    %eax,%ebx
  381:	50                   	push   %eax
  382:	e8 09 01 00 00       	call   490 <fstat>
- 387:	89 c6                	mov    %eax,%esi
   close(fd);
- 389:	89 1c 24             	mov    %ebx,(%esp)
+ 387:	89 1c 24             	mov    %ebx,(%esp)
+  int r;
+
+  fd = open(n, O_RDONLY);
+  if(fd < 0)
+    return -1;
+  r = fstat(fd, st);
+ 38a:	89 c6                	mov    %eax,%esi
+  close(fd);
  38c:	e8 cf 00 00 00       	call   460 <close>
   return r;
  391:	83 c4 10             	add    $0x10,%esp
- 394:	89 f0                	mov    %esi,%eax
 }
- 396:	8d 65 f8             	lea    -0x8(%ebp),%esp
+ 394:	8d 65 f8             	lea    -0x8(%ebp),%esp
+ 397:	89 f0                	mov    %esi,%eax
  399:	5b                   	pop    %ebx
  39a:	5e                   	pop    %esi
  39b:	5d                   	pop    %ebp
@@ -764,8 +771,8 @@ stat(char *n, struct stat *st)
   fd = open(n, O_RDONLY);
   if(fd < 0)
     return -1;
- 3a0:	b8 ff ff ff ff       	mov    $0xffffffff,%eax
- 3a5:	eb ef                	jmp    396 <stat+0x36>
+ 3a0:	be ff ff ff ff       	mov    $0xffffffff,%esi
+ 3a5:	eb ed                	jmp    394 <stat+0x34>
  3a7:	89 f6                	mov    %esi,%esi
  3a9:	8d bc 27 00 00 00 00 	lea    0x0(%edi,%eiz,1),%edi
 
