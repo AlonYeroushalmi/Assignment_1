@@ -123,7 +123,9 @@ void            yield(void);
 int 			setVariable(char*, char*);
 int 			getVariable(char*, char*);
 int 			remVariable(char*);
-int 			wait2(int pid, int* wtime, int* rtime, int* iotime);
+int 			wait2(int, int*, int*, int*);
+int 			set_priority(int);
+//int                     IncStatistics(void);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

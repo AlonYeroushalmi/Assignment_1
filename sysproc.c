@@ -120,9 +120,33 @@ int sys_remVariable(void) {
   return remVariable(var);
 }
 
-int sys_wait2(void){
-  int pid, wtime, rtime, iotime;
-  if(argint(0, &pid) < 0)
-    return -1;
-  return wait2(pid, &wtime, &rtime, &iotime);
+int
+sys_wait2(void)
+{
+int pid;
+int* wtime;
+int* rtime;
+int* iotime;
+
+if(argint(0, &pid) < 0)
+        return -1;
+if(argptr(1,(char**)&wtime,sizeof(int*)) < 0)
+        return -1;
+if(argptr(2,(char**)&rtime,sizeof(int*)) < 0)
+        return -1;
+if(argptr(3,(char**)&iotime,sizeof(int*)) < 0)
+        return -1;
+
+ return wait2(pid,wtime,rtime,iotime);
 }
+
+int sys_set_priority(void) {
+  int priority;
+  if(argint(0, &priority) < 0)
+    return -1;
+  return set_priority(priority);
+}
+
+/*int sys_IncStatistics(void){
+  return IncStatistics(); 
+}*/

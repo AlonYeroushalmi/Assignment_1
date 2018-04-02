@@ -9,10 +9,18 @@
 
 #define MAX_VARIABLES 32
 #define USER_COMMAND_MAX_SIZE 128
-#define NULL 0
+#define MAX_NUMBER 99999999999999
 
+//Variable table for shell
 char variable_table[MAX_VARIABLES][2][USER_COMMAND_MAX_SIZE];
 int next_empty_vartable_index = 0;
+
+#ifdef FCFS
+//Queue for FCFS
+struct proc * processesQueue[NPROC];
+int next_empty_processesQueue_index = 0;
+int processesQueue_head_index = 0;
+#endif
 
 struct {
   struct spinlock lock;
@@ -116,7 +124,6 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -144,7 +151,8 @@ found:
   p->ctime = ticks;
   p->etime = 0;
   p->rtime = 0;
-  p->iotime=0;
+  p->iotime=0; 
+  p->approxRTime = QUANTUM;
 
   return p;
 }
@@ -159,6 +167,9 @@ userinit(void)
 
   p = allocproc();
   
+  #ifdef CFSD
+  p->decayFactor = NORMAL_PRIORITY;
+  #endif
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
@@ -183,6 +194,10 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+  #ifdef FCFS
+  processesQueue[next_empty_processesQueue_index] = p;
+  next_empty_processesQueue_index++;
+  #endif
 
   release(&ptable.lock);
 }
@@ -232,6 +247,9 @@ fork(void)
   }
   np->sz = curproc->sz;
   np->parent = curproc;
+  #ifdef CFSD
+  np->decayFactor = curproc->decayFactor;
+  #endif
   *np->tf = *curproc->tf;
 
   // Clear %eax so that fork returns 0 in the child.
@@ -249,6 +267,11 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  #ifdef FCFS
+  processesQueue[next_empty_processesQueue_index] = np;
+  if(++next_empty_processesQueue_index >= NPROC)
+    next_empty_processesQueue_index = 0;
+  #endif
 
   release(&ptable.lock);
 
@@ -300,6 +323,10 @@ exit(void)
   curproc->etime = ticks;
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
+  #ifdef SRT
+  if (curproc->rtime >= curproc->approxRTime)
+    curproc->approxRTime = curproc->approxRTime + ALPHA * curproc->approxRTime;
+  #endif
   sched();
   panic("zombie exit");
 }
@@ -366,12 +393,11 @@ scheduler(void)
   for(;;){
     // Enable interrupts on this processor.
     sti();
-    //define the process with the minimum creation time, used for FCFS.
-    struct proc *minP = 0;
+
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
-    // choose Schedling policy and use it.
+    // choose Scheduling policy and use it.
     // -----------------------------------
 
     #ifdef DEFAULT
@@ -382,51 +408,9 @@ scheduler(void)
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-      proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-      swtch(&cpu->scheduler, proc->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      proc = 0;
-    }
-
-#else
-    #ifdef FCFS
-        struct proc *minP = NULL;
-        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-          if(p->state == RUNNABLE){
-            if (minP != NULL) 
-            {
-              if(p->ctime < minP->ctime) //we found a process with smallest creation time, update minP.
-                minP = p;
-            }
-            else
-              minP = p; //if minP is Null, use current process as minP.
-          }
-        }
-        // after we traversed the process table, run the process with the smalles creation time.
-        if (minP != NULL){
-          p = minP; //the process with the smallest creation time
-          proc = p;
-          switchuvm(p);
-          p->state = RUNNING;
-          swtch(&cpu->scheduler, proc->context);
-          switchkvm();
-          // after return from switchkvm - the proccess stopped running
-          // change p->state before coming back.
-           proc = 0;
-       }
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
-
       swtch(&(c->scheduler), p->context);
       switchkvm();
 
@@ -434,8 +418,67 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-    #endif 
     #endif
+    //update queue only when process changes to runnable or running (running happens only here)
+    #ifdef FCFS
+    if (processesQueue[processesQueue_head_index] != 0 && processesQueue[processesQueue_head_index]->state == RUNNABLE) {
+      p = processesQueue[processesQueue_head_index];
+      if (++processesQueue_head_index >= NPROC) //increment head for the next scheduling
+        processesQueue_head_index = 0;
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+      c->proc = 0;
+    }
+    #endif 
+
+    #ifdef SRT
+    struct proc * minApproxProcess = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){ //go through proc table and search for a RUNNALBE process with min approx time
+      if(p->state == RUNNABLE && (minApproxProcess == 0 || p->approxRTime < minApproxProcess->approxRTime))
+        minApproxProcess = p;
+    }
+    p = minApproxProcess;
+    if (p != 0 && p->state == RUNNABLE) {//if found a legitimate process, context switch to it
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+      c->proc = 0;
+    }
+    //if no process found or no RUNNABLE one, iterate again
+    #endif
+
+    #ifdef CFSD
+    struct proc * minRuntimeRatioProcess = 0;
+    float minRuntimeRatio = MAX_NUMBER;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){ //go through proc table and search for a RUNNABLE process with min runtime ratio
+      float wtime = ticks - p->ctime - p->rtime - p->iotime;
+      float curRuntimeRatio = (p->rtime * p->decayFactor) / (p->rtime + wtime);
+      if(p->state == RUNNABLE && minRuntimeRatioProcess == 0) {
+        minRuntimeRatioProcess = p;
+        minRuntimeRatio = curRuntimeRatio;
+      }
+      else if (p->state == RUNNABLE && curRuntimeRatio < minRuntimeRatio) {
+        minRuntimeRatioProcess = p;
+        minRuntimeRatio = curRuntimeRatio;
+      }
+    }
+    p = minRuntimeRatioProcess;
+    if (p != 0 && p->state == RUNNABLE) {//if found a legitimate process, context switch to it
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+      c->proc = 0;
+    }
+    //if no process found or no RUNNABLE one, iterate again
+    #endif
+
     release(&ptable.lock);
 
   }
@@ -471,8 +514,18 @@ sched(void)
 void
 yield(void)
 {
+  struct proc * p = myproc();
   acquire(&ptable.lock);  //DOC: yieldlock
-  myproc()->state = RUNNABLE;
+  p->state = RUNNABLE;
+  #ifdef FCFS
+  processesQueue[next_empty_processesQueue_index] = p;
+  if (++next_empty_processesQueue_index >= NPROC)
+    next_empty_processesQueue_index = 0;
+  #endif
+  #ifdef SRT
+  if (p->rtime >= p->approxRTime)
+    p->approxRTime = p->approxRTime + ALPHA * p->approxRTime;
+  #endif
   sched();
   release(&ptable.lock);
 }
@@ -524,7 +577,10 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
-
+  #ifdef SRT
+  if (p->rtime >= p->approxRTime)
+    p->approxRTime = p->approxRTime + ALPHA * p->approxRTime;
+  #endif
   sched();
 
   // Tidy up.
@@ -546,8 +602,14 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan) {
       p->state = RUNNABLE;
+      #ifdef FCFS
+      processesQueue[next_empty_processesQueue_index] = p;
+      if (++next_empty_processesQueue_index >= NPROC)
+        next_empty_processesQueue_index = 0;
+      #endif
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -572,8 +634,14 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
+      if(p->state == SLEEPING) {
         p->state = RUNNABLE;
+        #ifdef FCFS
+        processesQueue[next_empty_processesQueue_index] = p;
+        if (++next_empty_processesQueue_index >= NPROC)
+          next_empty_processesQueue_index = 0;
+        #endif
+      }
       release(&ptable.lock);
       return 0;
     }
@@ -655,15 +723,6 @@ int setVariable(char* var, char* val) {
 
 int getVariable(char* var, char* val) {
   int result = 0;
-
-  // if (var[0] == 'q') {
-  //   val[0] = 'y';
-  //   val[1] = 'e';
-  //   val[2] = 's';
-  //   val[3] = 0;
-  //   return 0;
-  // }
-
   int varIndexInTable = searchvar(var);
   if (varIndexInTable < 0)
     result = -1;
@@ -744,10 +803,40 @@ int wait2(int pid, int* wtime, int* rtime, int* iotime) {
   }
 }
 
-int inctickcounter() {
-  int res;
-  acquire(&ptable.lock);
-  res = ++proc->tickcounter;
-  release(&ptable.lock);
-  return res;
+int set_priority(int priority) {
+  switch (priority) {
+    case 1:
+      myproc()->decayFactor = HIGH_PRIORITY;
+      break;
+    case 2:
+      myproc()->decayFactor = NORMAL_PRIORITY;
+      break;
+    case 3:
+      myproc()->decayFactor = LOW_PRIORITY;
+      break;
+    default:
+      return -1; //priority given is illegal
+  }
+  return 0;
 }
+
+int IncStatistics() {
+  struct proc *p;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    switch(p->state) {
+      case SLEEPING:
+        p->iotime++;
+        break;
+      case RUNNING:
+        p->rtime++;
+        //p->tickCounter++;
+        break;
+      default:
+        ;
+    }
+  }
+  release(&ptable.lock);
+  return 0;
+}
+

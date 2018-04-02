@@ -13,7 +13,7 @@ struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
-extern int inctickcounter(void);
+extern void IncStatistics(void);
 
 void
 tvinit(void)
@@ -46,21 +46,16 @@ trap(struct trapframe *tf)
       exit();
     return;
   }
-
+//if we got here, trap() was called because of interrupt.
+//switch asks which interrupt occured.
   switch(tf->trapno){
-  case T_IRQ0 + IRQ_TIMER:
-    if(cpuid() == 0){
+  case T_IRQ0 + IRQ_TIMER: //clock interrupt
+    if(cpuid() == 0){ // I don't undestand this.
       acquire(&tickslock);
       ticks++;
+      IncStatistics(); // check if which process are running or sleeping and update time fields accordingly.
       wakeup(&ticks);
       release(&tickslock);
-      // check if proc is running or sleeping and update time fields accordingly.
-      if(myproc() != 0){
-        if(myproc()->state == RUNNING)
-          myproc()->rtime++;
-        else if(myproc()->state == SLEEPING)
-          myproc()->iotime++;
-      }
     }
     lapiceoi();
     break;
@@ -112,9 +107,10 @@ trap(struct trapframe *tf)
   // If interrupts were on while locks held, would need to check nlock.
   #ifndef FCFS
   if(myproc() && myproc()->state == RUNNING &&
-     tf->trapno == T_IRQ0+IRQ_TIMER && myproc()->tickcounter == QUANTUM)
+     tf->trapno == T_IRQ0+IRQ_TIMER && ticks % QUANTUM == 0)
     yield();
   #endif
+
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();

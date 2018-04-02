@@ -52,8 +52,11 @@ struct proc {
   int ctime;                   // Creation time
   int etime;                   // End time
   int iotime;                  // Total time of waiting for I/O.
-  int rtime;                   // Total running time of the process.  
-  int tickcounter;             // Whenever getting to 5 ticks, initilize it to 0.
+  int rtime;                   // Total running time of the process.
+  float approxRTime;           // Approximation for the total running time
+  float decayFactor;           // for CFSD
+  int tickCounter;             // when some process will go to trap and there will be a loop over all process, this tick will increase for each process exists. 
+  //float runtimeRatio;          // for determining which should run next in CFSD
 };
 
 // Process memory is laid out contiguously, low addresses first:
