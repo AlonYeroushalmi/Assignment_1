@@ -50,8 +50,8 @@ trap(struct trapframe *tf)
 //switch asks which interrupt occured.
   switch(tf->trapno){
   case T_IRQ0 + IRQ_TIMER: //clock interrupt
-    if(cpuid() == 0){ // I don't undestand this.
-      acquire(&tickslock);
+    if(cpuid() == 0){  // update kernel clock according to only one CPU timer, 
+      acquire(&tickslock); //otherwise it would be increased too much, unlike a real timer.
       ticks++;
       IncStatistics(); // check if which process are running or sleeping and update time fields accordingly.
       wakeup(&ticks);
